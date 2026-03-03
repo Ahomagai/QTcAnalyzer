@@ -1,3 +1,5 @@
+![alt text](https://github.com/Ahomagai/QTcAnalyzer/blob/main/QTcDashboard_demo.png)
+
 **Getting started**
 - First, download the files of the repository, then in a terminal run the following sequentially:
 
