@@ -1,5 +1,7 @@
 Getting started: 
-1. In a terminal run the following sequentially:
+First, download the files of the repository, then:
+
+In a terminal run the following sequentially:
 
 python -m venv .venv
 .venv\Scripts\activate 
@@ -8,7 +10,6 @@ python qt_dash_app.py
 
 Then the program will run in your local web browser, to view the output, you can go to:
 http://127.0.0.1:8050/
-
 
 Alternatively: 
 You can install python, and install the following packages:
@@ -22,4 +23,4 @@ Then double click qt_dash_app.py to open the program
 
 Click on the link: http://127.0.0.1:8050/ to run the browser instance 
 
-And then drag and drop or click the button to upload your ECG file 
+And then drag and drop or click the button to upload your ECG file.

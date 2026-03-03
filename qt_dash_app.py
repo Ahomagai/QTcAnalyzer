@@ -1,8 +1,7 @@
 import base64
 import io
 import math
-from pathlib import Path
-from typing import Tuple
+import webbrowser
 
 import neurokit2 as nk
 import numpy as np
@@ -10,6 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from dash import Dash, dcc, html, dash_table, Input, Output, State, no_update
+from tifffile import Timer
 
 
 def run_qt_analysis_from_df( df: pd.DataFrame, fs: float = 256.0, rolling_window: int = 5
@@ -241,7 +241,7 @@ app.layout = html.Div(
                                 dcc.Upload(
                                     id="upload-data",
                                     children=html.Div(
-                                        ["Drag and Drop or ", html.B("Select ECG CSV")]
+                                        ["Upload ECG File ", html.B("Select ECG CSV")]
                                     ),
                                     style={
                                         "width": "50%",
@@ -340,8 +340,13 @@ def update_output(n_clicks, contents, filename, fs_value):
         # Return status message, keep existing figures/table
         return no_update, no_update, no_update, no_update, f"Error: {e}"
 
+# Automatically open browser when app is run, no need to manually navigate to local port 
+def open_browser():
+        webbrowser.open('http://127.0.0.1:8050/')
+        
 
 if __name__ == "__main__":
     # Run: python qt_dash_app.py, then open http://127.0.0.1:8050/ in a browser
-    app.run(debug=True)
+    open_browser()
+    app.run(debug=False, port=8050)
 
