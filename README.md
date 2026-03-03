@@ -21,3 +21,6 @@ You can install python, and install the following packages:
 Then double click qt_dash_app.py to open the program 
 
 And then drag and drop or click the button to upload your ECG file.
+
+**Important to know**
+The visualization runs in your browser locally. If you want to run the program again, simply close the browser and run qt_dash_app.py again and upload your file as necessary. 
