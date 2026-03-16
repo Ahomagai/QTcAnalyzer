@@ -11,14 +11,14 @@
 Then the program will run in your local web browser, to view the output, you can go to:
 ```http://127.0.0.1:8050/```
 
-**Alternatively:**
+**If the above does not work you can also:**
 
-You can install python, and install the following packages:
-- dash
-- pandas
-- numpy
-- neurokit2
-- plotly 
+Install python, and install the following packages using pip (copy paste these lines in your terminal):
+- ```pip install dash```
+- ```pip install pandas```
+- ```pip install numpy```
+- ```pip install neurokit2```
+- ```pip install plotly```
 
 Then double click qt_dash_app.py to open the program 
 
