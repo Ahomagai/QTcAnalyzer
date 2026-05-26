@@ -7,6 +7,9 @@ This tool is used to visualize latencies between Qwave onset and Twave offest of
 
 
 
+## Why use this tool?
+QTc and the latency between the Qwave and Twaves are often used as cutoffs for eligibilty for specific ECG related research. QTc above a specific thresholds (e.g. 500ms) could make participants ineligible for some studies. This tool helps make it easier to determine QTc from raw ECG files captured in a small session. 
+
 ## **Getting started**
 - First, download the files of the repository, then in a terminal run the following sequentially:
 
