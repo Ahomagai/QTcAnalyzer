@@ -24,19 +24,34 @@ def run_qt_analysis_from_df( df: pd.DataFrame, fs: float = 256.0, rolling_window
     # R-peak detection and fix peaks 
     _, rpeaks_info = nk.ecg_peaks(ecg_clean, sampling_rate=fs, method="neurokit")
     _, rpeaks = nk.signal_fixpeaks(
-        rpeaks_info["ECG_R_Peaks"], sampling_rate=fs, method="Kubois"
+        rpeaks_info["ECG_R_Peaks"], sampling_rate=fs, method="Kubios"
     )
     rpeaks = np.asarray(rpeaks, dtype=int)
 
     # Delineate ECG waves (QRS complex and T-wave)
     _, waves = nk.ecg_delineate(ecg_clean, rpeaks, sampling_rate=fs, method="dwt")
+    _, waves2 = nk.ecg_delineate(ecg_clean, rpeaks, sampling_rate=fs, method = "peak")
 
     # !----- Important -----!
     # Neurokit2 calculates Q_onset as R_onset, the reasoning being that 
     ## R_Onset == QRS complex onset == Q_onset, change below to reflect ['ECG_R_Onsets'] as q_onset
 
     q_onsets = np.asarray(waves["ECG_R_Onsets"], dtype=float) 
-    t_offsets = np.asarray(waves["ECG_T_Offsets"], dtype=float)
+    
+    # original dwt based t_offset calculation could result in some misidentified (early-labeled) t_offsets, move to peak method
+    
+    t_offsets = np.asarray(waves2["ECG_T_Offsets"], dtype=float)
+    
+    # TODO: another option is to make a custom version of dwt_t_offest and use that alongside the peak method to run both methods; but this is probably overkill
+    # replace NeuroKit's collapsed T-offsets with the robust ones
+    # t_offsets = robust_dwt_t_offsets(ecg_clean, rpeaks, fs)
+    
+    # _, w_peak = nk.ecg_delineate(ecg_clean, rpeaks, sampling_rate=fs, method="peak")
+    # toff_peak = np.asarray(w_peak["ECG_T_Offsets"], dtype=float)
+    # toff_dwtfix = robust_dwt_t_offsets(ecg_clean, rpeaks, fs)
+
+    # flag beats where the two offsets disagree by > 40 ms for manual review
+    # disagree = np.abs(toff_peak - toff_dwtfix) / fs * 1000 > 40
 
     # RR intervals (seconds), padded to match beats, as we'll have 1 less RRi than beats
     rr_intervals = np.diff(rpeaks) / fs
@@ -343,6 +358,88 @@ def update_output(n_clicks, contents, filename, fs_value):
 # Automatically open browser when app is run, no need to manually navigate to local port 
 def open_browser():
         webbrowser.open('http://127.0.0.1:8050/')
+        
+
+# extra t_wave calculation function 
+import numpy as np
+import scipy.signal
+from neurokit2.ecg.ecg_delineate import (
+    _dwt_compute_multiscales,
+    _dwt_resample_points,
+    _dwt_delineate_tp_peaks,
+    _dwt_adjust_parameters,
+)
+from neurokit2.signal import signal_resample
+
+_ANALYSIS_FS = 2000  # NeuroKit's internal analysis rate for DWT delineation
+
+
+def robust_dwt_t_offsets(
+    ecg_clean,
+    rpeaks,
+    fs,
+    offset_weight: float = 0.4,
+    duration_offset: float = 0.3,
+):
+    """Recompute T-wave offsets from the DWT, anchored to the largest negative
+    modulus maximum rather than the first.
+
+    Parameters
+    ----------
+    ecg_clean : np.ndarray
+        Cleaned ECG (e.g. from nk.ecg_clean).
+    rpeaks : np.ndarray
+        R-peak sample indices at `fs`.
+    fs : float
+        Sampling rate of `ecg_clean` / `rpeaks`.
+
+    Returns
+    -------
+    t_offsets_fs : np.ndarray (float)
+        T-offset sample indices at the ORIGINAL `fs` (NaN where undetected),
+        aligned 1:1 with `rpeaks`.
+    """
+    rpeaks = np.asarray(rpeaks, dtype=int)
+
+    ecg2k = signal_resample(ecg_clean, sampling_rate=fs, desired_sampling_rate=_ANALYSIS_FS)
+    dwtmatr = _dwt_compute_multiscales(ecg2k, 9)
+
+    rpk2k = _dwt_resample_points(rpeaks, fs, _ANALYSIS_FS)
+    tpeaks, _ = _dwt_delineate_tp_peaks(ecg2k, rpk2k, dwtmatr, sampling_rate=_ANALYSIS_FS)
+
+    degree = _dwt_adjust_parameters(rpk2k, _ANALYSIS_FS, target="degree")
+    dur = _dwt_adjust_parameters(rpk2k, _ANALYSIS_FS, duration=duration_offset, target="duration")
+    scale = 2 + degree  # degree_offset (=2) + HR/fs-adjusted degree, same as NeuroKit
+    win = int(dur * _ANALYSIS_FS)
+
+    offsets = []
+    for tp in tpeaks:
+        if not np.isfinite(tp):
+            offsets.append(np.nan)
+            continue
+        s, e = int(tp), int(tp) + win
+        loc = dwtmatr[scale, s:e]
+        slope_peaks, _ = scipy.signal.find_peaks(-loc)
+        if len(slope_peaks) == 0:
+            offsets.append(np.nan)
+            continue
+
+        # --- the one change vs NeuroKit: largest negative MM, not the first ---
+        pk = slope_peaks[np.argmax(-loc[slope_peaks])]
+        # ----------------------------------------------------------------------
+
+        eps = -offset_weight * loc[pk]
+        cand = np.where(-loc[pk:] < eps)[0] + pk
+        if len(cand) == 0:
+            offsets.append(np.nan)
+            continue
+        offsets.append(cand[0] + s)
+
+    offsets = np.asarray(offsets, dtype=float)
+    return np.asarray(
+        _dwt_resample_points(offsets, _ANALYSIS_FS, desired_sampling_rate=fs),
+        dtype=float,
+    )
         
 
 if __name__ == "__main__":
