@@ -30,6 +30,8 @@ def run_qt_analysis_from_df( df: pd.DataFrame, fs: float = 256.0, rolling_window
 
     # Delineate ECG waves (QRS complex and T-wave)
     _, waves = nk.ecg_delineate(ecg_clean, rpeaks, sampling_rate=fs, method="dwt")
+    
+    # original dwt based t_offset calculation could result in some misidentified (early-labeled) t_offsets, move to peak method
     _, waves2 = nk.ecg_delineate(ecg_clean, rpeaks, sampling_rate=fs, method = "peak")
 
     # !----- Important -----!
@@ -38,7 +40,7 @@ def run_qt_analysis_from_df( df: pd.DataFrame, fs: float = 256.0, rolling_window
 
     q_onsets = np.asarray(waves["ECG_R_Onsets"], dtype=float) 
     
-    # original dwt based t_offset calculation could result in some misidentified (early-labeled) t_offsets, move to peak method
+    
     
     t_offsets = np.asarray(waves2["ECG_T_Offsets"], dtype=float)
     
@@ -360,86 +362,86 @@ def open_browser():
         webbrowser.open('http://127.0.0.1:8050/')
         
 
-# extra t_wave calculation function 
-import numpy as np
-import scipy.signal
-from neurokit2.ecg.ecg_delineate import (
-    _dwt_compute_multiscales,
-    _dwt_resample_points,
-    _dwt_delineate_tp_peaks,
-    _dwt_adjust_parameters,
-)
-from neurokit2.signal import signal_resample
+# # extra t_wave calculation function 
+# import numpy as np
+# import scipy.signal
+# from neurokit2.ecg.ecg_delineate import (
+#     _dwt_compute_multiscales,
+#     _dwt_resample_points,
+#     _dwt_delineate_tp_peaks,
+#     _dwt_adjust_parameters,
+# )
+# from neurokit2.signal import signal_resample
 
-_ANALYSIS_FS = 2000  # NeuroKit's internal analysis rate for DWT delineation
+# _ANALYSIS_FS = 2000  # NeuroKit's internal analysis rate for DWT delineation
 
 
-def robust_dwt_t_offsets(
-    ecg_clean,
-    rpeaks,
-    fs,
-    offset_weight: float = 0.4,
-    duration_offset: float = 0.3,
-):
-    """Recompute T-wave offsets from the DWT, anchored to the largest negative
-    modulus maximum rather than the first.
+# def robust_dwt_t_offsets(
+#     ecg_clean,
+#     rpeaks,
+#     fs,
+#     offset_weight: float = 0.4,
+#     duration_offset: float = 0.3,
+# ):
+#     """Recompute T-wave offsets from the DWT, anchored to the largest negative
+#     modulus maximum rather than the first.
 
-    Parameters
-    ----------
-    ecg_clean : np.ndarray
-        Cleaned ECG (e.g. from nk.ecg_clean).
-    rpeaks : np.ndarray
-        R-peak sample indices at `fs`.
-    fs : float
-        Sampling rate of `ecg_clean` / `rpeaks`.
+#     Parameters
+#     ----------
+#     ecg_clean : np.ndarray
+#         Cleaned ECG (e.g. from nk.ecg_clean).
+#     rpeaks : np.ndarray
+#         R-peak sample indices at `fs`.
+#     fs : float
+#         Sampling rate of `ecg_clean` / `rpeaks`.
 
-    Returns
-    -------
-    t_offsets_fs : np.ndarray (float)
-        T-offset sample indices at the ORIGINAL `fs` (NaN where undetected),
-        aligned 1:1 with `rpeaks`.
-    """
-    rpeaks = np.asarray(rpeaks, dtype=int)
+#     Returns
+#     -------
+#     t_offsets_fs : np.ndarray (float)
+#         T-offset sample indices at the ORIGINAL `fs` (NaN where undetected),
+#         aligned 1:1 with `rpeaks`.
+#     """
+#     rpeaks = np.asarray(rpeaks, dtype=int)
 
-    ecg2k = signal_resample(ecg_clean, sampling_rate=fs, desired_sampling_rate=_ANALYSIS_FS)
-    dwtmatr = _dwt_compute_multiscales(ecg2k, 9)
+#     ecg2k = signal_resample(ecg_clean, sampling_rate=fs, desired_sampling_rate=_ANALYSIS_FS)
+#     dwtmatr = _dwt_compute_multiscales(ecg2k, 9)
 
-    rpk2k = _dwt_resample_points(rpeaks, fs, _ANALYSIS_FS)
-    tpeaks, _ = _dwt_delineate_tp_peaks(ecg2k, rpk2k, dwtmatr, sampling_rate=_ANALYSIS_FS)
+#     rpk2k = _dwt_resample_points(rpeaks, fs, _ANALYSIS_FS)
+#     tpeaks, _ = _dwt_delineate_tp_peaks(ecg2k, rpk2k, dwtmatr, sampling_rate=_ANALYSIS_FS)
 
-    degree = _dwt_adjust_parameters(rpk2k, _ANALYSIS_FS, target="degree")
-    dur = _dwt_adjust_parameters(rpk2k, _ANALYSIS_FS, duration=duration_offset, target="duration")
-    scale = 2 + degree  # degree_offset (=2) + HR/fs-adjusted degree, same as NeuroKit
-    win = int(dur * _ANALYSIS_FS)
+#     degree = _dwt_adjust_parameters(rpk2k, _ANALYSIS_FS, target="degree")
+#     dur = _dwt_adjust_parameters(rpk2k, _ANALYSIS_FS, duration=duration_offset, target="duration")
+#     scale = 2 + degree  # degree_offset (=2) + HR/fs-adjusted degree, same as NeuroKit
+#     win = int(dur * _ANALYSIS_FS)
 
-    offsets = []
-    for tp in tpeaks:
-        if not np.isfinite(tp):
-            offsets.append(np.nan)
-            continue
-        s, e = int(tp), int(tp) + win
-        loc = dwtmatr[scale, s:e]
-        slope_peaks, _ = scipy.signal.find_peaks(-loc)
-        if len(slope_peaks) == 0:
-            offsets.append(np.nan)
-            continue
+#     offsets = []
+#     for tp in tpeaks:
+#         if not np.isfinite(tp):
+#             offsets.append(np.nan)
+#             continue
+#         s, e = int(tp), int(tp) + win
+#         loc = dwtmatr[scale, s:e]
+#         slope_peaks, _ = scipy.signal.find_peaks(-loc)
+#         if len(slope_peaks) == 0:
+#             offsets.append(np.nan)
+#             continue
 
-        # --- the one change vs NeuroKit: largest negative MM, not the first ---
-        pk = slope_peaks[np.argmax(-loc[slope_peaks])]
-        # ----------------------------------------------------------------------
+#         # --- the one change vs NeuroKit: largest negative MM, not the first ---
+#         pk = slope_peaks[np.argmax(-loc[slope_peaks])]
+#         # ----------------------------------------------------------------------
 
-        eps = -offset_weight * loc[pk]
-        cand = np.where(-loc[pk:] < eps)[0] + pk
-        if len(cand) == 0:
-            offsets.append(np.nan)
-            continue
-        offsets.append(cand[0] + s)
+#         eps = -offset_weight * loc[pk]
+#         cand = np.where(-loc[pk:] < eps)[0] + pk
+#         if len(cand) == 0:
+#             offsets.append(np.nan)
+#             continue
+#         offsets.append(cand[0] + s)
 
-    offsets = np.asarray(offsets, dtype=float)
-    return np.asarray(
-        _dwt_resample_points(offsets, _ANALYSIS_FS, desired_sampling_rate=fs),
-        dtype=float,
-    )
+#     offsets = np.asarray(offsets, dtype=float)
+#     return np.asarray(
+#         _dwt_resample_points(offsets, _ANALYSIS_FS, desired_sampling_rate=fs),
+#         dtype=float,
+#     )
         
 
 if __name__ == "__main__":
