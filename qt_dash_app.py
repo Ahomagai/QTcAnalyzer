@@ -1,7 +1,6 @@
 import base64
 import io
 import math
-import webbrowser
 
 import neurokit2 as nk
 import numpy as np
@@ -9,7 +8,6 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from dash import Dash, dcc, html, dash_table, Input, Output, State, no_update
-from tifffile import Timer
 
 
 def run_qt_analysis_from_df( df: pd.DataFrame, fs: float = 256.0, rolling_window: int = 5
@@ -225,6 +223,7 @@ def run_qt_analysis_from_df( df: pd.DataFrame, fs: float = 256.0, rolling_window
 # # Dash app
 app = Dash(__name__)
 app.title = "QT / QTc ECG Dashboard"
+server = app.server  # exposed for gunicorn/WSGI on Render
 
 
 def parse_contents(contents: str, filename: str) -> pd.DataFrame:
@@ -357,12 +356,7 @@ def update_output(n_clicks, contents, filename, fs_value):
         # Return status message, keep existing figures/table
         return no_update, no_update, no_update, no_update, f"Error: {e}"
 
-# Automatically open browser when app is run, no need to manually navigate to local port 
-def open_browser():
-        webbrowser.open('http://127.0.0.1:8050/')
-        
-
-# # extra t_wave calculation function 
+# # extra t_wave calculation function
 # import numpy as np
 # import scipy.signal
 # from neurokit2.ecg.ecg_delineate import (
@@ -445,7 +439,10 @@ def open_browser():
         
 
 if __name__ == "__main__":
-    # Run: python qt_dash_app.py, then open http://127.0.0.1:8050/ in a browser
-    open_browser()
-    app.run(debug=False, port=8050)
+    # Local: python qt_dash_app.py, then open http://127.0.0.1:8050/ in a browser
+    # On Render, PORT is injected and gunicorn serves `server` directly (this block doesn't run).
+    import os
+
+    port = int(os.environ.get("PORT", 8050))
+    app.run(host="0.0.0.0", port=port, debug=False)
 
