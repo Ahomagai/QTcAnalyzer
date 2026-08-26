@@ -4,3 +4,4 @@ numpy
 neurokit2
 plotly
 gunicorn
+PyWavelets
