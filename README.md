@@ -10,7 +10,17 @@ This tool is used to visualize latencies between Qwave onset and Twave offest of
 ## Why use this tool?
 QTc and the latency between the Qwave and Twaves are often used as cutoffs for eligibilty for specific ECG related research. QTc above a specific thresholds (e.g. 500ms) could make participants ineligible for some studies. This tool helps make it easier to determine QTc from raw ECG files captured in a small session. 
 
-## **Getting started**
+
+## **Getting started (2 methods) **
+
+### Online browser (slow but no Python installation required)
+This program is hosted by Render workspace as a blueprint and can be run via browser from the following url :https://qtc-analyzer.onrender.com
+* Render is a free hosting platform so the tradeoff is speed. The render itself takes a while to start up and data upload and dashboard presentation may take a few minutes. But this requires no python installation.
+
+
+
+### Locally (much faster, relatively simple to install python and packages)
+To run locally (fastest method) on your machine:
 - First, download the files of the repository, then in a terminal run the following sequentially:
 
   - ```python -m venv .venv```
